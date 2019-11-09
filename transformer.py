@@ -1,14 +1,14 @@
-"""Testing instance of transformer
+"""Transformer for converting ply files to las
 """
 
-import logging
 import os
 import numpy as np
-
 import laspy
-from plyfile import PlyData, PlyElement
 
 from terrautils.spatial import scanalyzer_to_utm
+
+from plyfile import PlyData
+
 import configuration
 import transformer_class
 
@@ -23,7 +23,7 @@ def ply_to_array(input_paths: list, scan_distance: float, scan_direction: int, p
     :param utm: True to return coordinates to UTM, False to return gantry fixed coordinates
     :return: tuple of (x_points, y_points, z_points, utm_bounds)
     """
-
+    # pylint: disable=too-many-locals, too-many-statements
     # Create concatenated list of vertices to generate one merged LAS file
     first = True
     for plyf in input_paths:
@@ -45,15 +45,15 @@ def ply_to_array(input_paths: list, scan_distance: float, scan_direction: int, p
             fix_y = merged_y + float(2.0*float(cambox[1])) - scan_distance/2.0 + (
                 -0.354 if curr_side == 'east' else -4.363)
             utm_x, utm_y = scanalyzer_to_utm(
-                    (fix_x * 0.001) + point_cloud_origin['x'],
-                    (fix_y * 0.001) + point_cloud_origin['y']/2.0 - 0.1
+                (fix_x * 0.001) + point_cloud_origin['x'],
+                (fix_y * 0.001) + point_cloud_origin['y']/2.0 - 0.1
             )
         else:
             fix_y = merged_y + float(2.0*float(cambox[1])) - scan_distance/2.0 + (
                 4.2 if curr_side == 'east' else -3.43)
             utm_x, utm_y = scanalyzer_to_utm(
-                    (fix_x * 0.001) + point_cloud_origin['x'],
-                    (fix_y * 0.001) + point_cloud_origin['y']/2.0 + 0.4
+                (fix_x * 0.001) + point_cloud_origin['x'],
+                (fix_y * 0.001) + point_cloud_origin['y']/2.0 + 0.4
             )
         fix_z = merged_z + cambox[2]
         utm_z = (fix_z * 0.001) + point_cloud_origin['z']
@@ -112,39 +112,27 @@ def generate_las_from_ply(input_paths: list, output_path: str, scan_distance: fl
     (x_pts, y_pts, z_pts, bounds) = ply_to_array(input_paths, scan_distance, scan_direction, point_cloud_origin, utm)
 
     # Create header and populate with scale and offset
-    w = laspy.base.Writer(output_path, 'w', laspy.header.Header())
-    w.header.offset = [np.floor(np.min(y_pts)),
-                       np.floor(np.min(x_pts)),
-                       np.floor(np.min(z_pts))]
+    las_info = laspy.base.Writer(output_path, 'w', laspy.header.Header())
+    las_info.header.offset = [np.floor(np.min(y_pts)),
+                              np.floor(np.min(x_pts)),
+                              np.floor(np.min(z_pts))]
     if utm:
-        w.header.scale = [.000001, .000001, .000001]
+        las_info.header.scale = [.000001, .000001, .000001]
     else:
-        w.header.scale = [1, 1, .000001]
+        las_info.header.scale = [1, 1, .000001]
 
-    w.set_x(y_pts, True)
-    w.set_y(x_pts, True)
-    w.set_z(z_pts, True)
-    w.set_header_property("x_max", np.max(y_pts))
-    w.set_header_property("x_min", np.min(y_pts))
-    w.set_header_property("y_max", np.max(x_pts))
-    w.set_header_property("y_min", np.min(x_pts))
-    w.set_header_property("z_max", np.max(z_pts))
-    w.set_header_property("z_min", np.min(z_pts))
-    w.close()
+    las_info.set_x(y_pts, True)
+    las_info.set_y(x_pts, True)
+    las_info.set_z(z_pts, True)
+    las_info.set_header_property("x_max", np.max(y_pts))
+    las_info.set_header_property("x_min", np.min(y_pts))
+    las_info.set_header_property("y_max", np.max(x_pts))
+    las_info.set_header_property("y_min", np.min(x_pts))
+    las_info.set_header_property("z_max", np.max(z_pts))
+    las_info.set_header_property("z_min", np.min(z_pts))
+    las_info.close()
 
     return bounds
-
-
-def check_continue(transformer: transformer_class.Transformer, check_md: dict, transformer_md: dict, full_md: dict, **kwargs) -> dict:
-    """Checks if conditions are right for continuing processing
-    Arguments:
-        transformer: instance of transformer class
-    Return:
-        Returns a dictionary containining the return code for continuing or not, and
-        an error message if there's an error
-    """
-    print("check_continue(): received arguments: %s" % str(kwargs))
-    return (0)
 
 
 def perform_process(transformer: transformer_class.Transformer, check_md: dict, transformer_md: dict, full_md: dict) -> dict:
@@ -154,6 +142,7 @@ def perform_process(transformer: transformer_class.Transformer, check_md: dict, 
     Return:
         Returns a dictionary with the results of processing
     """
+    # pylint: disable=unused-argument
     result = {}
     file_md = []
 
