@@ -3,6 +3,7 @@
 
 import logging
 import os
+import json
 import numpy as np
 
 import laspy
@@ -10,7 +11,10 @@ from plyfile import PlyData, PlyElement
 
 from terrautils.spatial import scanalyzer_to_utm
 import configuration
-import transformer_class
+try:
+    import transformer_class
+except ImportError:
+    pass
 
 
 def ply_to_array(input_paths: list, scan_distance: float, scan_direction: int, point_cloud_origin: dict, utm):
@@ -135,7 +139,34 @@ def generate_las_from_ply(input_paths: list, output_path: str, scan_distance: fl
     return bounds
 
 
-def check_continue(transformer: transformer_class.Transformer, check_md: dict, transformer_md: dict, full_md: dict, **kwargs) -> dict:
+def ply2las(input_paths, full_md = None):
+    # Determine metadata and PLY files
+    ply_files = []
+    for f in input_paths:
+        if f.endswith(".ply"):
+            ply_files.append(f)
+        if f.endswith("_cleaned.json") and full_md is None:
+            with open(f, 'r') as mdf:
+                full_md = json.load(mdf)['content']
+
+    if full_md:
+        scan_distance = float(full_md['sensor_variable_metadata']['scan_distance_mm'])/1000.0
+        scan_direction = int(full_md['sensor_variable_metadata']['scan_direction'])
+        point_cloud_origin = full_md['sensor_variable_metadata']['point_cloud_origin_m']['east']
+        if len(ply_files) > 0:
+            out_file = ply_files[0].replace(".ply", ".las")
+            generate_las_from_ply(ply_files, out_file, scan_distance, scan_direction, point_cloud_origin, True)
+
+    # Return formatted dict for simple extractor
+    return {
+        "metadata": {
+            "files_created": [out_file]
+        },
+        "outputs": [out_file]
+    }
+
+
+def check_continue(transformer, check_md: dict, transformer_md: dict, full_md: dict, **kwargs) -> dict:
     """Checks if conditions are right for continuing processing
     Arguments:
         transformer: instance of transformer class
@@ -147,7 +178,7 @@ def check_continue(transformer: transformer_class.Transformer, check_md: dict, t
     return (0)
 
 
-def perform_process(transformer: transformer_class.Transformer, check_md: dict, transformer_md: dict, full_md: dict) -> dict:
+def perform_process(transformer, check_md: dict, transformer_md: dict, full_md: dict) -> dict:
     """Performs the processing of the data
     Arguments:
         transformer: instance of transformer class
@@ -159,21 +190,15 @@ def perform_process(transformer: transformer_class.Transformer, check_md: dict, 
 
     file_list = os.listdir(check_md['working_folder'])
 
-    # Extract necessary parameters from metadata
-    scan_distance = float(full_md['sensor_variable_metadata']['scan_distance_mm'])/1000.0
-    scan_direction = int(full_md['sensor_variable_metadata']['scan_direction'])
-    point_cloud_origin = full_md['sensor_variable_metadata']['point_cloud_origin_m']['east']
-
     try:
         ply_files = []
         for one_file in file_list:
             if one_file.endswith(".ply"):
                 ply_files.append(os.path.join(check_md['working_folder'], one_file))
         if len(ply_files) > 0:
-            out_file = ply_files[0].replace(".ply", ".las")
-            generate_las_from_ply(ply_files, out_file, scan_distance, scan_direction, point_cloud_origin, True)
+            output = ply2las(ply_files, full_md)
             file_md.append({
-                'path': out_file,
+                'path': output['output'],
                 'key': configuration.TRANSFORMER_SENSOR,
                 'metadata': {
                     'data': transformer_md
