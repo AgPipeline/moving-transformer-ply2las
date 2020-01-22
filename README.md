@@ -3,11 +3,14 @@
 Converts PLY files to LAS files.
 
 ### Sample Docker Command Line
+
 Below is a sample command line that shows how the field mosaic Docker image could be run.
 An explanation of the command line options used follows.
 Be sure to read up on the [docker run](https://docs.docker.com/engine/reference/run/) command line for more information.
 
-```docker run --rm --mount "src=/home/test,target=/mnt,type=bind" agpipeline/ply2las:2.1 --working_space "/mnt" --metadata "/mnt/08f445ef-b8f9-421a-acf1-8b8c206c1bb8_metadata_cleaned.json" ```
+```sh
+docker run --rm --mount "src=/home/test,target=/mnt,type=bind" agpipeline/ply2las:2.1 --working_space "/mnt" --metadata "/mnt/08f445ef-b8f9-421a-acf1-8b8c206c1bb8_metadata_cleaned.json" /mnt/3c807fe1-a5ba-4b4b-b618-1d2c9c981678__Top-heading-east_0.ply
+```
 
 This example command line assumes the source files are located in the `/home/test` folder of the local machine.
 The name of the image to run is `agpipeline/ply2las:2.1`.
@@ -28,10 +31,12 @@ We mount the `/home/test` folder to the running image to make files available to
 The command line parameters after the image name are passed to the software inside the image.
 Note that the paths provided are relative to the running image (see the --mount option specified above).
 
-- `--working_space "/mnt"` specifies the folder to use as a workspace. Contains the .ply files to convert
+- `--working_space "/mnt"` specifies the folder to use as a workspace
 - `--metadata "/mnt/08f445ef-b8f9-421a-acf1-8b8c206c1bb8_metadata.cleaned.json"` is the name of the source metadata to be cleaned
+- `/mnt/3c807fe1-a5ba-4b4b-b618-1d2c9c981678__Top-heading-east_0.ply` is the name of the ply file to convert
 
 # Original README
+
 Below are the contents of the original README.md for the TERRA REF project.
 It is included here as reference material for the history of this transformer.
 
@@ -57,7 +62,8 @@ docker build -f Dockerfile -t terra-ext-ply2las .
 ```
 
 _Running the image locally_
-```
+
+```sh
 docker run \
   -p 5672 -p 9000 --add-host="localhost:{LOCAL_IP}" \
   -e RABBITMQ_URI=amqp://{RMQ_USER}:{RMQ_PASSWORD}@localhost:5672/%2f \
@@ -65,10 +71,12 @@ docker run \
   -e REGISTRATION_ENDPOINTS=http://localhost:9000/clowder/api/extractors?key={SECRET_KEY} \
   terra-ext-ply2las
 ```
+
 Note that by default RabbitMQ will not allow "guest:guest" access to non-local addresses, which includes Docker. You may need to create an additional local RabbitMQ user for testing.
 
 _Running the image remotely_
-```
+
+```sh
 docker run \
   -e RABBITMQ_URI=amqp://{RMQ_USER}:{RMQ_PASSWORD}@rabbitmq.ncsa.illinois.edu/clowder \
   -e RABBITMQ_EXCHANGE=terra \

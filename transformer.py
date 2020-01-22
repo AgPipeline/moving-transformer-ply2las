@@ -1,6 +1,7 @@
 """Transformer for converting ply files to las
 """
 
+import datetime
 import os
 import numpy as np
 import laspy
@@ -12,6 +13,7 @@ from plyfile import PlyData
 import configuration
 import transformer_class
 
+MM_PER_METER = 1000.0
 
 def ply_to_array(input_paths: list, scan_distance: float, scan_direction: int, point_cloud_origin: dict, utm):
     """Read PLY files into a numpy matrix.
@@ -135,7 +137,7 @@ def generate_las_from_ply(input_paths: list, output_path: str, scan_distance: fl
     return bounds
 
 
-def perform_process(transformer: transformer_class.Transformer, check_md: dict, transformer_md: dict, full_md: dict) -> dict:
+def perform_process(transformer: transformer_class.Transformer, check_md: dict, transformer_md: dict, full_md: list) -> dict:
     """Performs the processing of the data
     Arguments:
         transformer: instance of transformer class
@@ -146,30 +148,44 @@ def perform_process(transformer: transformer_class.Transformer, check_md: dict, 
     result = {}
     file_md = []
 
-    file_list = os.listdir(check_md['working_folder'])
+    file_list = check_md['list_files']()
 
     # Extract necessary parameters from metadata
-    scan_distance = float(full_md['sensor_variable_metadata']['scan_distance_mm'])/1000.0
-    scan_direction = int(full_md['sensor_variable_metadata']['scan_direction'])
-    point_cloud_origin = full_md['sensor_variable_metadata']['point_cloud_origin_m']['east']
+    for one_metadata in full_md:
+        if 'sensor_variable_metadata' in one_metadata:
+            scan_distance = float(one_metadata['sensor_variable_metadata']['scan_distance_mm'])/MM_PER_METER
+            scan_direction = int(one_metadata['sensor_variable_metadata']['scan_direction'])
+            point_cloud_origin = one_metadata['sensor_variable_metadata']['point_cloud_origin_m']['east']
+            break
 
     try:
         ply_files = []
+        transformer_info = transformer.generate_transformer_md()
         for one_file in file_list:
             if one_file.endswith(".ply"):
                 ply_files.append(os.path.join(check_md['working_folder'], one_file))
-        if len(ply_files) > 0:
+        if ply_files:
             out_file = ply_files[0].replace(".ply", ".las")
             generate_las_from_ply(ply_files, out_file, scan_distance, scan_direction, point_cloud_origin, True)
+
             file_md.append({
                 'path': out_file,
                 'key': configuration.TRANSFORMER_SENSOR,
                 'metadata': {
-                    'data': transformer_md
+                    'data': {
+                        'name': transformer_info['name'],
+                        'version': transformer_info['version'],
+                        'source': ','.join(file_list),
+                        'utc_timestamp': datetime.datetime.now().isoformat()
+                    }
                 }
             })
         result['code'] = 0
         result['file'] = file_md
+        result[configuration.TRANSFORMER_NAME] = {
+            **transformer_info,
+            'utc_timestamp': datetime.datetime.now().isoformat()
+        }
 
     except Exception as ex:
         result['code'] = -1
